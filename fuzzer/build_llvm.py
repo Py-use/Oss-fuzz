@@ -23,14 +23,16 @@ def do_copy():
             if os.path.isfile(src_file):
                 all_seeds.append(src_file)
 
+    counter = 1
     while all_seeds:
         batch_size = random.randint(1, 4)
         batch = all_seeds[:batch_size]
         all_seeds = all_seeds[batch_size:]
 
         for seed_path in batch:
-            filename = os.path.basename(seed_path)
-            dst_file = os.path.join(coverage_dir, filename)
+            new_filename = f"test{counter:06d}.s"
+            counter += 1
+            dst_file = os.path.join(coverage_dir, new_filename)
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
