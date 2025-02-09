@@ -36,7 +36,7 @@ def do_copy():
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
-        delay = random.randint(2, 5)
+        delay = random.randint(5, 18)
         time.sleep(delay)
 
     shutil.rmtree(temp_dir)
