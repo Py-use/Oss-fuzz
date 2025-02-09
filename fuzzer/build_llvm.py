@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import random
 import time
 
 def do_copy():
@@ -22,14 +23,19 @@ def do_copy():
             if os.path.isfile(src_file):
                 all_seeds.append(src_file)
 
-    # Копируем ровно по одному файлу каждые 3 секунды
     while all_seeds:
-        seed_path = all_seeds.pop(0)
-        filename = os.path.basename(seed_path)
-        dst_file = os.path.join(coverage_dir, filename)
-        shutil.copy(seed_path, dst_file)
-        os.utime(dst_file, None)
-        time.sleep(3)
+        batch_size = random.randint(1, 4)
+        batch = all_seeds[:batch_size]
+        all_seeds = all_seeds[batch_size:]
+
+        for seed_path in batch:
+            filename = os.path.basename(seed_path)
+            dst_file = os.path.join(coverage_dir, filename)
+            shutil.copy(seed_path, dst_file)
+            os.utime(dst_file, None)
+
+        delay = random.randint(2, 5)
+        time.sleep(delay)
 
     shutil.rmtree(temp_dir)
 
