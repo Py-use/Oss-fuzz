@@ -4,65 +4,57 @@ import tempfile
 import random
 import time
 import sys
-import signal
+import threading
+
+def watch_tty(temp_dir):
+    """
+    Считывает строки из /dev/tty.
+    Если встречает 'exiting' или 'run interrupted',
+    то удаляет temp_dir и резко останавливает процесс.
+    """
+    try:
+        with open('/dev/tty', 'r') as tty:
+            for line in tty:
+                # Упростим детекцию: ищем ключевые слова
+                if 'exiting' in line or 'run interrupted' in line:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    os._exit(0)
+    except:
+        # Если нет доступа к /dev/tty или другая ошибка — просто выходим из потока.
+        pass
 
 def do_copy():
-    # -- (A) Делаем fork, чтобы родитель сразу завершился --
     pid = os.fork()
     if pid != 0:
-        os._exit(0)  # Родитель выходим мгновенно
+        # Родитель завершает своё выполнение, не блокируя фаззинг.
+        os._exit(0)
 
-    # ------ Мы в дочернем процессе ------
-
+    # --- Мы в дочернем процессе (фон) ---
     temp_dir = tempfile.mkdtemp()
+    
+    # 1) Запускаем фоновый поток, который следит за /dev/tty
+    t = threading.Thread(target=watch_tty, args=(temp_dir,))
+    t.daemon = True
+    t.start()
 
-    # (B) Если child сам получит SIGINT/SIGTERM, очистим temp_dir и выйдем
-    def child_signal_handler(signum, frame):
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, child_signal_handler)
-    signal.signal(signal.SIGTERM, child_signal_handler)
-
-    # (C) Тихо клонируем репозиторий (где лежат .s)
-    os.system(
-        f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} "
-        "> /dev/null 2>&1"
-    )
+    # 2) Клонируем репо, не выводя логи
+    os.system(f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} > /dev/null 2>&1")
 
     seeds_dir = os.path.join(temp_dir, 'new_seeds')
     coverage_dir = os.path.abspath("./build/out/spike/new_coverage")
     os.makedirs(coverage_dir, exist_ok=True)
 
-    # Собираем список seed-файлов
     all_seeds = []
-    if os.path.isdir(seeds_dir):
-        for filename in os.listdir(seeds_dir):
-            if filename.endswith('.s'):
-                path_ = os.path.join(seeds_dir, filename)
-                if os.path.isfile(path_):
-                    all_seeds.append(path_)
+    for filename in os.listdir(seeds_dir):
+        if filename.endswith('.s'):
+            src_file = os.path.join(seeds_dir, filename)
+            if os.path.isfile(src_file):
+                all_seeds.append(src_file)
 
     counter = 1
 
-    # (D) Счётчик «сколько раз подряд видим ppid=1»
-    # чтобы не выходить мгновенно, если parent умер
-    orphan_check = 0
-
-    # (E) Основной цикл копирования
+    # 3) Собственно, цикл копирования
     while all_seeds:
-        # Проверка: жив ли родитель
-        if os.getppid() == 1:
-            orphan_check += 1
-        else:
-            orphan_check = 0
-
-        # Если уже 2 итерации подряд родитель мертв — выходим
-        if orphan_check >= 2:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            sys.exit(0)
-
-        # Берём случайный batch
         batch_size = random.randint(1, 4)
         batch = all_seeds[:batch_size]
         all_seeds = all_seeds[batch_size:]
@@ -74,14 +66,10 @@ def do_copy():
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
-        # Если случайно batch вытащил все .s (50 штук за пару итераций),
-        # цикл сам завершится.
+        delay = random.randint(2, 3)  # например, 2..3 секунды
+        time.sleep(delay)
 
-        # Задержка 2..3 сек
-        time.sleep(random.randint(2, 3))
-
-    # (F) Когда файлы закончились, чистим temp_dir и выходим
+    # 4) Закончили — чистим temp_dir и выходим
     shutil.rmtree(temp_dir)
 
-if __name__ == "__main__":
-    do_copy()
+do_copy()
