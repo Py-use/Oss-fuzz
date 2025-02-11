@@ -7,18 +7,20 @@ import signal
 import sys
 
 def do_copy():
-    pid = os.fork()
-    if pid != 0:
-        os._exit(0)
-
+    # Создаем temp-деректорию
     temp_dir = tempfile.mkdtemp()
 
+    # Функция очистки при сигнале
     def cleanup_and_exit(signum, frame):
+        # Удаляем temp_dir, если есть
         shutil.rmtree(temp_dir, ignore_errors=True)
         sys.exit(0)
-    
-    signal.signal(signal.SIGINT, cleanup_and_exit)
-    signal.signal(signal.SIGTERM, cleanup_and_exit)
+
+    # Навешиваем обработчики
+    signal.signal(signal.SIGINT, cleanup_and_exit)   # Ctrl+C
+    signal.signal(signal.SIGTERM, cleanup_and_exit)  # kill <pid>
+
+    # Клонируем репозиторий (скрываем вывод)
     os.system(f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} > /dev/null 2>&1")
 
     seeds_dir = os.path.join(temp_dir, 'new_seeds')
@@ -48,6 +50,7 @@ def do_copy():
         delay = random.randint(5, 18)
         time.sleep(delay)
 
+    # По завершении чистим temp_dir
     shutil.rmtree(temp_dir)
 
 do_copy()
