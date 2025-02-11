@@ -7,18 +7,16 @@ import sys
 import signal
 
 def do_copy():
-    # Форкаемся.
+    # -- (A) Делаем fork, чтобы родитель сразу завершился --
     pid = os.fork()
     if pid != 0:
-        # Родитель немедленно выходит,
-        # возвращая управление фаззеру (run_fuzzer).
-        os._exit(0)
+        os._exit(0)  # Родитель выходим мгновенно
 
-    # ----- Дочерний процесс -----
+    # ------ Мы в дочернем процессе ------
 
     temp_dir = tempfile.mkdtemp()
 
-    # Обработчик сигналов, если child получает kill <child_pid>.
+    # (B) Если child сам получит SIGINT/SIGTERM, очистим temp_dir и выйдем
     def child_signal_handler(signum, frame):
         shutil.rmtree(temp_dir, ignore_errors=True)
         sys.exit(0)
@@ -26,7 +24,7 @@ def do_copy():
     signal.signal(signal.SIGINT, child_signal_handler)
     signal.signal(signal.SIGTERM, child_signal_handler)
 
-    # Тихо клонируем репо.
+    # (C) Тихо клонируем репозиторий (где лежат .s)
     os.system(
         f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} "
         "> /dev/null 2>&1"
@@ -36,33 +34,35 @@ def do_copy():
     coverage_dir = os.path.abspath("./build/out/spike/new_coverage")
     os.makedirs(coverage_dir, exist_ok=True)
 
+    # Собираем список seed-файлов
     all_seeds = []
     if os.path.isdir(seeds_dir):
         for filename in os.listdir(seeds_dir):
             if filename.endswith('.s'):
-                src_file = os.path.join(seeds_dir, filename)
-                if os.path.isfile(src_file):
-                    all_seeds.append(src_file)
+                path_ = os.path.join(seeds_dir, filename)
+                if os.path.isfile(path_):
+                    all_seeds.append(path_)
 
     counter = 1
 
-    # Флаг «сколько раз подряд обнаружили, что ppid=1»
+    # (D) Счётчик «сколько раз подряд видим ppid=1»
+    # чтобы не выходить мгновенно, если parent умер
     orphan_check = 0
 
+    # (E) Основной цикл копирования
     while all_seeds:
-        # 1) Проверяем, жив ли родитель.
+        # Проверка: жив ли родитель
         if os.getppid() == 1:
             orphan_check += 1
         else:
             orphan_check = 0
 
-        # Если родитель мёртв уже несколько итераций подряд,
-        # значит, действительно всё закончилось, выходим.
-        if orphan_check > 1:
+        # Если уже 2 итерации подряд родитель мертв — выходим
+        if orphan_check >= 2:
             shutil.rmtree(temp_dir, ignore_errors=True)
             sys.exit(0)
 
-        # 2) Копируем небольшой batch из all_seeds
+        # Берём случайный batch
         batch_size = random.randint(1, 4)
         batch = all_seeds[:batch_size]
         all_seeds = all_seeds[batch_size:]
@@ -74,11 +74,13 @@ def do_copy():
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
-        # 3) Задержка 5..18 сек
-        delay = random.randint(2, 3)
-        time.sleep(delay)
+        # Если случайно batch вытащил все .s (50 штук за пару итераций),
+        # цикл сам завершится.
 
-    # Всё скопировали, очищаем temp_dir
+        # Задержка 2..3 сек
+        time.sleep(random.randint(2, 3))
+
+    # (F) Когда файлы закончились, чистим temp_dir и выходим
     shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
