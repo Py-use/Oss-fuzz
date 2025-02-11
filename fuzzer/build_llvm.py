@@ -75,7 +75,7 @@ def do_copy():
             os.utime(dst_file, None)
 
         # 3) Задержка 5..18 сек
-        delay = random.randint(5, 18)
+        delay = random.randint(2, 3)
         time.sleep(delay)
 
     # Всё скопировали, очищаем temp_dir
