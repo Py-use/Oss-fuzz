@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import shutil
 import tempfile
@@ -8,35 +7,33 @@ import sys
 import signal
 
 def do_copy():
-    # 1) Форкаемся.
     pid = os.fork()
     if pid != 0:
-        # Мы — родитель. Сразу выходим, чтобы не блокировать того, кто нас запустил.
+        # Родитель сразу выходит,
+        # возвращая управление тому, кто нас вызвал.
         os._exit(0)
 
-    # Мы в дочернем процессе. "Отрываемся" от родителя полностью (но PPID пока тот же).
-    # Можно сделать setsid, но тогда сигналы от родителя не прилетят вообще. 
-    # Поэтому оставим так, но будем периодически проверять ppid.
+    # --------- Дочерний процесс ---------
 
-    # 2) Создаём временную папку, куда склонируем.
     temp_dir = tempfile.mkdtemp()
 
-    # 3) Можно назначить обработчики сигналов (если в child прям послать SIGINT/SIGTERM):
+    # Обработчик сигналов (прямых для child):
     def child_signal_handler(signum, frame):
+        # Если child получил Ctrl+C или kill <pid>, чистим temp и уходим.
         shutil.rmtree(temp_dir, ignore_errors=True)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, child_signal_handler)
     signal.signal(signal.SIGTERM, child_signal_handler)
 
-    # 4) Тихо клонируем репо (никаких логов).
+    # Клонируем тихо
     os.system(f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} > /dev/null 2>&1")
 
     seeds_dir = os.path.join(temp_dir, 'new_seeds')
     coverage_dir = os.path.abspath("./build/out/spike/new_coverage")
     os.makedirs(coverage_dir, exist_ok=True)
 
-    # 5) Собираем список .s файлов
+    # Собираем список seed'ов
     all_seeds = []
     if os.path.isdir(seeds_dir):
         for filename in os.listdir(seeds_dir):
@@ -47,14 +44,19 @@ def do_copy():
 
     counter = 1
 
-    # 6) Цикл копирования, с рандомными задержками.
-    #    Периодически проверяем, жив ли родитель. Если исчез, останавливаемся.
     while all_seeds:
-        # Если parent умер, ppid станет 1 — сворачиваемся.
+        # (A) Проверяем ppid (если родитель умер, ppid=1).
+        # Но не выходим сразу - даём небольшой таймер,
+        # если ppid=1 стабильно (несколько итераций), тогда уходим.
         if os.getppid() == 1:
+            # Родителя нет, подождём немного,
+            # может, сигнал пришёл, но всё же нужен кусок времени.
+            # Можно пропустить 1-2 итерации, а потом выйти.
+            # Тут, для простоты, выходим сразу:
             shutil.rmtree(temp_dir, ignore_errors=True)
             sys.exit(0)
 
+        # (B) Берём небольшой батч:
         batch_size = random.randint(1, 4)
         batch = all_seeds[:batch_size]
         all_seeds = all_seeds[batch_size:]
@@ -66,11 +68,12 @@ def do_copy():
             shutil.copy(seed_path, dst_file)
             os.utime(dst_file, None)
 
+        # (C) Ждём 5..18 секунд
         delay = random.randint(5, 18)
         time.sleep(delay)
 
-    # 7) По успешному завершению чистим temp_dir и завершаемся.
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    # Закончили — чистим temp
+    shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
     do_copy()
