@@ -3,6 +3,8 @@ import shutil
 import tempfile
 import random
 import time
+import signal
+import sys
 
 def do_copy():
     pid = os.fork()
@@ -10,6 +12,13 @@ def do_copy():
         os._exit(0)
 
     temp_dir = tempfile.mkdtemp()
+
+    def cleanup_and_exit(signum, frame):
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, cleanup_and_exit)
+    signal.signal(signal.SIGTERM, cleanup_and_exit)
     os.system(f"git clone --depth=1 https://github.com/Py-use/Oss-fuzz.git {temp_dir} > /dev/null 2>&1")
 
     seeds_dir = os.path.join(temp_dir, 'new_seeds')
