@@ -3,8 +3,8 @@
 
 _start:
     li a0, 5
-    li a1, 7        # Вместо 3, теперь 7
-    and a0, a0, a1  # 5 (0101) AND 7 (0111) = 5
+    li a1, 7
+    and a0, a0, a1 
 
     la t0, tohost
     sw a0, 0(t0)
