@@ -8,7 +8,6 @@ _start:
 
     li a2, 7
 
-    # переход, если (a0 > a2)
     bgt a0, a2, bigger_than_a2
 
     addi a0, a0, 2
