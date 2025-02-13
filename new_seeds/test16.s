@@ -23,8 +23,14 @@ end_label:
 1:
     j 1b
 
-.section .tohost, "aw", @progbits
+.section .tohost,"aw",@progbits
 .align 8
 .globl tohost
 tohost:
+    .dword 0
+
+.section .fromhost,"aw",@progbits
+.align 8
+.globl fromhost
+fromhost:
     .dword 0
