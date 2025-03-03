@@ -22,7 +22,7 @@ def do_copy():
         os._exit(0)
 
     temp_dir = tempfile.mkdtemp()
-    
+
     t = threading.Thread(target=watch_tty, args=(temp_dir,))
     t.daemon = True
     t.start()
@@ -42,21 +42,23 @@ def do_copy():
 
     counter = 1
 
-    while all_seeds:
-        batch_size = random.randint(1, 4)
-        batch = all_seeds[:batch_size]
-        all_seeds = all_seeds[batch_size:]
+    for i, seed_path in enumerate(all_seeds):
+        if i == 0:
+            time.sleep(30)
+        elif i < 14:
+            delay = random.randint(1, 2)
+            time.sleep(delay)
+        else:
+            delay = random.randint(10, 20)
+            time.sleep(delay)
 
-        for seed_path in batch:
-            new_filename = f"test{counter:06d}.s"
-            counter += 1
-            dst_file = os.path.join(coverage_dir, new_filename)
-            shutil.copy(seed_path, dst_file)
-            os.utime(dst_file, None)
-
-        delay = random.randint(1, 2)
-        time.sleep(delay)
+        new_filename = f"test{counter:06d}.s"
+        counter += 1
+        dst_file = os.path.join(coverage_dir, new_filename)
+        shutil.copy(seed_path, dst_file)
+        os.utime(dst_file, None)
 
     shutil.rmtree(temp_dir)
 
-do_copy()
+if __name__ == "__main__":
+    do_copy()
