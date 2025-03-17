@@ -46,7 +46,7 @@ def do_copy():
         if i == 0:
             time.sleep(15)
         elif i < 14:
-            delay = random.randint(0, 2)
+            delay = random.randint(0, 1)
             time.sleep(delay)
         else:
             delay = random.randint(1, 3)
