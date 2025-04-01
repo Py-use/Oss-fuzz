@@ -44,12 +44,12 @@ def do_copy():
 
     for i, seed_path in enumerate(all_seeds):
         if i == 0:
-            time.sleep(1)
+            time.sleep(15)
         elif i < 14:
-            delay = random.randint(0, 1)
+            delay = random.randint(0, 5)
             time.sleep(delay)
         else:
-            delay = random.randint(1, 3)
+            delay = random.randint(5, 15)
             time.sleep(delay)
 
         new_filename = f"test{counter:06d}.s"
