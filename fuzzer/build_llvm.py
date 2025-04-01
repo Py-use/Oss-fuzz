@@ -44,7 +44,7 @@ def do_copy():
 
     for i, seed_path in enumerate(all_seeds):
         if i == 0:
-            time.sleep(15)
+            time.sleep(1)
         elif i < 14:
             delay = random.randint(0, 1)
             time.sleep(delay)
